@@ -227,9 +227,9 @@ do_revise_docs_from_folder(DbName, Sleep, [H|T]) ->
         do_revise_docs_from_folder(DbName, Sleep, T)
     catch
         ?STACKTRACE(_, _, ST)
-            kz_util:log_stacktrace(ST),
-            do_revise_docs_from_folder(DbName, Sleep, T)
-    end.
+        kz_util:log_stacktrace(ST),
+        do_revise_docs_from_folder(DbName, Sleep, T)
+        end.
 
 -spec maybe_update_doc(kz_term:ne_binary(), kz_json:object()) ->
                               {'ok', kz_json:object()} |

@@ -795,10 +795,10 @@ cf_module_task(CFModule, Data, Call, AMQPConsumer) ->
     try CFModule:handle(Data, Call)
     catch
         ?STACKTRACE(_E, R, ST)
-            lager:info("action ~s died unexpectedly (~s): ~p", [CFModule, _E, R]),
-            kz_util:log_stacktrace(ST),
-            throw(R)
-    end.
+        lager:info("action ~s died unexpectedly (~s): ~p", [CFModule, _E, R]),
+        kz_util:log_stacktrace(ST),
+        throw(R)
+        end.
 
 %%------------------------------------------------------------------------------
 %% @doc Unlike the kapps_call_command this send command does not call the
