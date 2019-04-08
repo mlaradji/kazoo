@@ -325,26 +325,31 @@ generate_row(Args) ->
     lager:debug("create rate for prefix ~s(~s)", [Prefix, kz_doc:id(RateJObj)]),
     validate_row(RateJObj).
 
--spec validate_row(kzd_rates:doc()) -> list().
-validate_row(RateJObj) -> validate_row(RateJObj, ?DOC_FIELDS, []).
+-spec validate_row(kzd_rates:doc()) -> kzd_rates:doc().
+validate_row(RateJObj) ->
+    Updates = lists:foldl(fun(F, Acc) -> validate_row_fold(F, Acc, RateJObj) end, [], ?DOC_FIELDS),
+    kz_json:set_values(Updates, RateJObj).
 
--spec validate_row(kzd_rates:doc(), list(), kz_term:proplist()) -> kz_term:proplist().
-validate_row(RateJObj, [Field|Fields], Updates) ->
+-spec validate_row_fold(kz_json:key(), kz_json:set_value_funs(), kzd_rates:doc()) ->
+                               kz_json:set_value_funs().
+validate_row_fold(<<"rate_name">>, Updates, RateJObj) ->
+    Value = maybe_generate_name(RateJObj),
+    [{fun kzd_rates:set_rate_name/2, Value} | Updates];
+validate_row_fold(<<"weight">>, Updates, RateJObj) ->
+    Value = maybe_generate_weight(RateJObj),
+    [{fun kzd_rates:set_weight/2, Value} | Updates];
+validate_row_fold(<<"caller_id_numbers">>, Updates, RateJObj) ->
+    Value = maybe_generate_caller_id_numbers(RateJObj),
+    [{fun kzd_rates:set_caller_id_numbers/2, Value} | Updates];
+validate_row_fold(<<"routes">>, Updates, RateJObj) ->
+    Value = maybe_generate_routes(RateJObj),
+    [{fun kzd_rates:set_routes/2, Value} | Updates];
+validate_row_fold(Field, Updates, RateJObj) ->
     Getter = binary_to_atom(<<Field/binary>>, 'utf8'),
     Setter = binary_to_atom(<<"set_", Field/binary>>, 'utf8'),
-    Value = case Field of
-                <<"rate_name">> -> maybe_generate_name(RateJObj);
-                <<"weight">> -> maybe_generate_weight(RateJObj);
-                <<"caller_id_numbers">> -> maybe_generate_caller_id_numbers(RateJObj);
-                <<"routes">> -> maybe_generate_routes(RateJObj);
-                _ -> kzd_rates:Getter(RateJObj)
-            end,
+    Value = kzd_rates:Getter(RateJObj),
     lager:debug("validated field: ~s ~p -> ~p", [Field ,kz_json:get_value(Field, RateJObj), Value]),
-    NewProp = {fun kzd_rates:Setter/2, Value},
-    validate_row(RateJObj, Fields, Updates ++ [NewProp]);
-validate_row(RateJObj, [], Updates) ->
-    Filtered = props:filter_undefined(Updates),
-    kz_json:set_values(Filtered, RateJObj).
+    [{fun kzd_rates:Setter/2, Value} | Updates].
 
 -spec save_rates(kz_term:ne_binary(), kzd_rates:docs()) -> 'ok'.
 save_rates(Db, Rates) ->
@@ -475,19 +480,19 @@ generate_weight(?NE_BINARY = Prefix, UnitCost, UnitIntCost) ->
     Weight = (byte_size(Prefix) * 10) - trunc(CostToUse * 100),
     kzd_rates:constrain_weight(Weight).
 
--spec maybe_generate_caller_id_numbers(kzd_rates:doc()) -> kz_term:ne_binaries()|'undefined'.
+-spec maybe_generate_caller_id_numbers(kzd_rates:doc()) -> kz_term:api_ne_binaries().
 maybe_generate_caller_id_numbers(RateJObj) ->
-    maybe_generate_caller_id_numbers(RateJObj, kz_json:get_value(<<"caller_id_numbers">>, RateJObj)).
+    maybe_generate_caller_id_numbers(RateJObj, kzd_rates:caller_id_numbers(RateJObj)).
 
--spec maybe_generate_caller_id_numbers(kzd_rates:doc(), kz_term:ne_binary()) -> kz_term:api_ne_binaries().
-maybe_generate_caller_id_numbers(_RateJObj, CID_Numbers)  when is_binary(CID_Numbers) ->
-    lists:map(fun(X) -> <<"^\\+?", X/binary, ".+", ?DOLLAR_SIGN>> end
-             ,binary:split(CID_Numbers, <<":">>, ['global'])
-             );
-maybe_generate_caller_id_numbers(_RateJObj, _CID_Numbers) ->
+-spec maybe_generate_caller_id_numbers(kzd_rates:doc(), kz_term:api_ne_binary()) -> kz_term:api_ne_binaries().
+maybe_generate_caller_id_numbers(_RateJObj, <<CIDNumbers/binary>>) ->
+    [<<"^\\+?", Number/binary, ".+", ?DOLLAR_SIGN>>
+         || Number <- binary:split(CIDNumbers, <<":">>, ['global'])
+    ];
+maybe_generate_caller_id_numbers(_RateJObj, 'undefined') ->
     'undefined'.
 
--spec maybe_generate_routes(kzd_rates:doc()) -> kz_term:ne_binaries()|'undefined'.
+-spec maybe_generate_routes(kzd_rates:doc()) -> kz_term:api_ne_binaries().
 maybe_generate_routes(RateJObj) ->
     Routes = kz_json:get_value(<<"routes">>, RateJObj),
     case is_binary(Routes) of
