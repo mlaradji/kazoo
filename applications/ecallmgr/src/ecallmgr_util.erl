@@ -786,7 +786,7 @@ classify_endpoints([Endpoint | Endpoints], Devices, Failovers) ->
             classify_endpoints(Endpoints, Devices, maybe_use_fwd_endpoint(Endpoint, Failovers))
     end.
 
--spec maybe_use_fwd_endpoint(bridge_channels(), bridge_channel()) -> bridge_channel().
+-spec maybe_use_fwd_endpoint(bridge_channel(), bridge_channels()) -> bridge_channels().
 maybe_use_fwd_endpoint(Endpoint, Failovers) ->
     ForwardDestination = get_loopback_number(Endpoint),
     case ForwardDestination =/= 'undefined'
